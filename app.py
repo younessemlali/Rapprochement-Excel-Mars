@@ -894,6 +894,11 @@ def main():
                 st.success("🎉 Rapprochement hybride terminé avec succès !")
                 
                 with st.expander("📈 Résumé détaillé", expanded=False):
+                    # Calculer la confiance moyenne en dehors du f-string pour éviter la division par zéro
+                    confidence_moyenne = 'N/A'
+                    if len(matcher.matched_data) > 0:
+                        confidence_moyenne = f"{sum(m['confidence'] for m in matcher.matched_data) / len(matcher.matched_data):.3f}"
+                    
                     st.markdown(f"""
                     **🧠 Méthode intelligente utilisée :**
                     - {matching_stats['matching_method']}
@@ -913,7 +918,7 @@ def main():
                     
                     **🎯 Qualité :**
                     - Matching fuzzy avec seuil {fuzzy_threshold}%
-                    - Confiance moyenne: {(sum(m['confidence'] for m in matcher.matched_data) / len(matcher.matched_data)):.3f if len(matcher.matched_data) > 0 else 'N/A'}
+                    - Confiance moyenne: {confidence_moyenne}
                     - Enrichissement avec noms des intérimaires et validation croisée
                     """)
     
