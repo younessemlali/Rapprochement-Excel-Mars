@@ -42,60 +42,79 @@ class ExcelMatcher:
                 # Lire toutes les feuilles du fichier Excel
                 excel_data = pd.read_excel(uploaded_file, sheet_name=None)
                 
-                # Prioriser la feuille "Donnees_Analyse" ou "Résumé_Factures"
-                target_sheets = ['Donnees_Analyse', 'Résumé_Factures', 'Detail_Lignes']
+                st.write(f"   📋 Feuilles trouvées: {list(excel_data.keys())}")
                 
-                df_to_use = None
-                sheet_used = None
+                # Définir l'ordre de priorité des feuilles à traiter
+                priority_sheets = ['Donnees_Analyse', 'Résumé_Factures', 'Detail_Lignes', 'Analyse_Rubriques']
                 
-                for sheet_name in target_sheets:
+                sheets_to_process = []
+                
+                # Ajouter d'abord les feuilles prioritaires
+                for sheet_name in priority_sheets:
                     if sheet_name in excel_data:
-                        df_to_use = excel_data[sheet_name]
-                        sheet_used = sheet_name
-                        break
+                        sheets_to_process.append(sheet_name)
                 
-                if df_to_use is None:
-                    # Prendre la première feuille disponible
-                    sheet_used = list(excel_data.keys())[0]
-                    df_to_use = excel_data[sheet_used]
+                # Ajouter toutes les autres feuilles
+                for sheet_name in excel_data.keys():
+                    if sheet_name not in sheets_to_process:
+                        sheets_to_process.append(sheet_name)
                 
-                # Nettoyer et standardiser les données
-                df_cleaned = self.clean_pdf_excel_data(df_to_use)
+                st.write(f"   🔄 Feuilles à traiter: {sheets_to_process}")
                 
-                st.write(f"   📋 Colonnes trouvées: {list(df_cleaned.columns)}")
-                st.write(f"   📊 {len(df_cleaned)} lignes dans la feuille '{sheet_used}'")
+                total_rows_added = 0
                 
-                # Debug: Afficher les premières lignes
-                if len(df_cleaned) > 0:
-                    st.write(f"   🔍 Échantillon première ligne:")
-                    for col in df_cleaned.columns[:8]:  # Premières 8 colonnes
-                        if col in df_cleaned.columns:
-                            st.write(f"     - {col}: {df_cleaned.iloc[0][col]}")
-                
-                rows_added = 0
-                for _, row in df_cleaned.iterrows():
-                    data_row = {
-                        'source_file': uploaded_file.name,
-                        'source_sheet': sheet_used,
-                        'numero_facture': row.get('Numero_Facture') or row.get('N° Facture'),
-                        'numero_commande': row.get('Numero_Commande') or row.get('N° Commande'),
-                        'date_facture': row.get('Date_Facture') or row.get('Date'),
-                        'semaine_finissant_le': row.get('Semaine_Finissant_Le') or self.extract_week_from_date(row.get('Date_Facture')),
-                        'destinataire': row.get('Destinataire'),
-                        'batch_id': row.get('Batch_ID'),
-                        'assignment_id': row.get('Assignment_ID'),
-                        'total_net': self.safe_float(row.get('Total_Net_EUR') or row.get('Total_Net')),
-                        'total_tva': self.safe_float(row.get('Total_TVA_EUR') or row.get('Total_TVA')),
-                        'total_brut': self.safe_float(row.get('Total_Brut_EUR') or row.get('Total_Brut')),
-                        'type_donnees': 'PDF_EXTRACT'
-                    }
+                # TRAITER TOUTES LES FEUILLES
+                for sheet_name in sheets_to_process:
+                    df_to_use = excel_data[sheet_name]
                     
-                    # Ajouter seulement si on a au minimum un numéro de commande
-                    if data_row['numero_commande']:
-                        all_data.append(data_row)
-                        rows_added += 1
+                    if df_to_use is None or len(df_to_use) == 0:
+                        st.write(f"   ⚠️ Feuille '{sheet_name}' vide, ignorée")
+                        continue
+                    
+                    st.write(f"   📊 Traitement feuille '{sheet_name}' ({len(df_to_use)} lignes)")
+                    
+                    # Nettoyer et standardiser les données
+                    df_cleaned = self.clean_pdf_excel_data(df_to_use)
+                    
+                    st.write(f"     📋 Colonnes: {list(df_cleaned.columns)[:5]}{'...' if len(df_cleaned.columns) > 5 else ''}")
+                    
+                    # Debug: Afficher les premières lignes si contient des colonnes intéressantes
+                    has_useful_columns = any(col in df_cleaned.columns for col in ['Numero_Facture', 'Numero_Commande', 'N° Facture', 'N° Commande'])
+                    
+                    if has_useful_columns and len(df_cleaned) > 0:
+                        st.write(f"     🔍 Échantillon première ligne:")
+                        relevant_cols = ['Numero_Facture', 'Numero_Commande', 'N° Facture', 'N° Commande', 'Total_Net_EUR', 'Total_Net']
+                        for col in relevant_cols:
+                            if col in df_cleaned.columns:
+                                st.write(f"       - {col}: {df_cleaned.iloc[0][col]}")
+                    
+                    rows_added_sheet = 0
+                    for _, row in df_cleaned.iterrows():
+                        data_row = {
+                            'source_file': uploaded_file.name,
+                            'source_sheet': sheet_name,
+                            'numero_facture': row.get('Numero_Facture') or row.get('N° Facture'),
+                            'numero_commande': row.get('Numero_Commande') or row.get('N° Commande'),
+                            'date_facture': row.get('Date_Facture') or row.get('Date'),
+                            'semaine_finissant_le': row.get('Semaine_Finissant_Le') or self.extract_week_from_date(row.get('Date_Facture')),
+                            'destinataire': row.get('Destinataire'),
+                            'batch_id': row.get('Batch_ID'),
+                            'assignment_id': row.get('Assignment_ID'),
+                            'total_net': self.safe_float(row.get('Total_Net_EUR') or row.get('Total_Net')),
+                            'total_tva': self.safe_float(row.get('Total_TVA_EUR') or row.get('Total_TVA')),
+                            'total_brut': self.safe_float(row.get('Total_Brut_EUR') or row.get('Total_Brut')),
+                            'type_donnees': 'PDF_EXTRACT'
+                        }
+                        
+                        # Ajouter seulement si on a au minimum un numéro de commande
+                        if data_row['numero_commande']:
+                            all_data.append(data_row)
+                            rows_added_sheet += 1
+                    
+                    st.write(f"     ✅ {rows_added_sheet} lignes valides ajoutées de '{sheet_name}'")
+                    total_rows_added += rows_added_sheet
                 
-                st.write(f"   ✅ {rows_added} lignes valides ajoutées (avec N° commande)")
+                st.write(f"   🎯 TOTAL: {total_rows_added} lignes ajoutées du fichier {uploaded_file.name}")
                 
             except Exception as e:
                 st.error(f"❌ Erreur lors du traitement de {uploaded_file.name}: {e}")
