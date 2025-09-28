@@ -90,19 +90,22 @@ class ExcelMatcher:
                     
                     rows_added_sheet = 0
                     for _, row in df_cleaned.iterrows():
+                        # Chercher le vrai numéro de commande dans le nom du fichier
+                        true_commande = self.extract_commande_from_filename(uploaded_file.name)
+                        
                         data_row = {
                             'source_file': uploaded_file.name,
                             'source_sheet': sheet_name,
                             'numero_facture': row.get('Numero_Facture') or row.get('N° Facture'),
-                            'numero_commande': row.get('Numero_Commande') or row.get('N° Commande'),
+                            'numero_commande': true_commande or row.get('Numero_Commande') or row.get('N° Commande'),
                             'date_facture': row.get('Date_Facture') or row.get('Date'),
-                            'semaine_finissant_le': row.get('Semaine_Finissant_Le') or self.extract_week_from_date(row.get('Date_Facture')),
+                            'semaine_finissant_le': row.get('Semaine_Finissant_Le') or self.extract_week_from_date(row.get('Date_Facture')) or self.extract_week_from_date(row.get('Date_Periode')),
                             'destinataire': row.get('Destinataire'),
                             'batch_id': row.get('Batch_ID'),
                             'assignment_id': row.get('Assignment_ID'),
-                            'total_net': self.safe_float(row.get('Total_Net_EUR') or row.get('Total_Net')),
-                            'total_tva': self.safe_float(row.get('Total_TVA_EUR') or row.get('Total_TVA')),
-                            'total_brut': self.safe_float(row.get('Total_Brut_EUR') or row.get('Total_Brut')),
+                            'total_net': self.safe_float(row.get('Total_Net_EUR') or row.get('Total_Net') or row.get('Montant_Net')),
+                            'total_tva': self.safe_float(row.get('Total_TVA_EUR') or row.get('Total_TVA') or row.get('Montant_TVA')),
+                            'total_brut': self.safe_float(row.get('Total_Brut_EUR') or row.get('Total_Brut') or row.get('Montant_Brut')),
                             'type_donnees': 'PDF_EXTRACT'
                         }
                         
@@ -222,6 +225,35 @@ class ExcelMatcher:
             
             return float(value)
         except (ValueError, TypeError):
+            return None
+    
+    def extract_commande_from_filename(self, filename: str) -> Optional[str]:
+        """Extrait le numéro de commande depuis le nom du fichier PDF"""
+        try:
+            # Pattern pour des noms comme: 123_4949S0001_1182_0015030425_5600025054_MARSFR_11032025.pdf
+            # Le numéro de commande est souvent en 5ème position
+            parts = filename.split('_')
+            
+            # Chercher un numéro qui ressemble à une commande (10 chiffres commençant par 56)
+            for part in parts:
+                if len(part) == 10 and part.startswith('56') and part.isdigit():
+                    return part
+            
+            # Si pas trouvé, chercher d'autres patterns
+            commande_patterns = [
+                r'(56\d{8})',  # 56 suivi de 8 chiffres
+                r'(\d{10})',   # 10 chiffres
+            ]
+            
+            for pattern in commande_patterns:
+                matches = re.findall(pattern, filename)
+                if matches:
+                    return matches[0]
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Impossible d'extraire commande de {filename}: {e}")
             return None
     
     def extract_week_from_date(self, date_str) -> Optional[str]:
