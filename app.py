@@ -913,7 +913,7 @@ def main():
                     
                     **🎯 Qualité :**
                     - Matching fuzzy avec seuil {fuzzy_threshold}%
-                    - Confiance moyenne: {(sum(m['confidence'] for m in matcher.matched_data) / len(matcher.matched_data)):.3f if matcher.matched_data else 'N/A'}
+                    - Confiance moyenne: {(sum(m['confidence'] for m in matcher.matched_data) / len(matcher.matched_data)):.3f if len(matcher.matched_data) > 0 else 'N/A'}
                     - Enrichissement avec noms des intérimaires et validation croisée
                     """)
     
