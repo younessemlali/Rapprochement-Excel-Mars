@@ -62,6 +62,17 @@ class ExcelMatcher:
                 # Nettoyer et standardiser les données
                 df_cleaned = self.clean_pdf_excel_data(df_to_use)
                 
+                st.write(f"   📋 Colonnes trouvées: {list(df_cleaned.columns)}")
+                st.write(f"   📊 {len(df_cleaned)} lignes dans la feuille '{sheet_used}'")
+                
+                # Debug: Afficher les premières lignes
+                if len(df_cleaned) > 0:
+                    st.write(f"   🔍 Échantillon première ligne:")
+                    for col in df_cleaned.columns[:8]:  # Premières 8 colonnes
+                        if col in df_cleaned.columns:
+                            st.write(f"     - {col}: {df_cleaned.iloc[0][col]}")
+                
+                rows_added = 0
                 for _, row in df_cleaned.iterrows():
                     data_row = {
                         'source_file': uploaded_file.name,
@@ -82,6 +93,9 @@ class ExcelMatcher:
                     # Ajouter seulement si on a au minimum un numéro de commande
                     if data_row['numero_commande']:
                         all_data.append(data_row)
+                        rows_added += 1
+                
+                st.write(f"   ✅ {rows_added} lignes valides ajoutées (avec N° commande)")
                 
             except Exception as e:
                 st.error(f"❌ Erreur lors du traitement de {uploaded_file.name}: {e}")
@@ -104,6 +118,17 @@ class ExcelMatcher:
                 # Nettoyer et standardiser les données
                 df_cleaned = self.clean_beeline_excel_data(df)
                 
+                st.write(f"   📋 Colonnes trouvées: {list(df_cleaned.columns)}")
+                st.write(f"   📊 {len(df_cleaned)} lignes dans le fichier")
+                
+                # Debug: Afficher les premières lignes
+                if len(df_cleaned) > 0:
+                    st.write(f"   🔍 Échantillon première ligne:")
+                    for col in df_cleaned.columns[:8]:  # Premières 8 colonnes
+                        if col in df_cleaned.columns:
+                            st.write(f"     - {col}: {df_cleaned.iloc[0][col]}")
+                
+                rows_added = 0
                 for _, row in df_cleaned.iterrows():
                     data_row = {
                         'source_file': uploaded_file.name,
@@ -126,6 +151,9 @@ class ExcelMatcher:
                     # Ajouter seulement si on a au minimum un numéro de commande et un collaborateur
                     if data_row['numero_commande'] and data_row['collaborateur']:
                         all_data.append(data_row)
+                        rows_added += 1
+                
+                st.write(f"   ✅ {rows_added} lignes valides ajoutées (avec N° commande + collaborateur)")
                 
             except Exception as e:
                 st.error(f"❌ Erreur lors du traitement de {uploaded_file.name}: {e}")
@@ -285,9 +313,59 @@ class ExcelMatcher:
         remaining_pdf = self.excel_pdf_data.copy()
         remaining_beeline = self.excel_beeline_data.copy()
         
+        # DEBUT DEBUG - Afficher des échantillons de données
+        st.write("🔍 **DEBUG - Échantillons de données pour diagnostic :**")
+        
+        if remaining_pdf:
+            st.write("📊 **Échantillon données PDF :**")
+            pdf_sample = remaining_pdf[0]
+            st.write(f"- N° Commande: '{pdf_sample.get('numero_commande')}' (type: {type(pdf_sample.get('numero_commande'))})")
+            st.write(f"- Semaine: '{pdf_sample.get('semaine_finissant_le')}' (type: {type(pdf_sample.get('semaine_finissant_le'))})")
+            st.write(f"- Total Net: {pdf_sample.get('total_net')} (type: {type(pdf_sample.get('total_net'))})")
+            
+            # Normalisation de test
+            pdf_commande_norm = self.normalize_commande_number(pdf_sample.get('numero_commande'))
+            pdf_semaine_norm = self.normalize_week_format(pdf_sample.get('semaine_finissant_le'))
+            st.write(f"- N° Commande normalisé: '{pdf_commande_norm}'")
+            st.write(f"- Semaine normalisée: '{pdf_semaine_norm}'")
+        
+        if remaining_beeline:
+            st.write("📋 **Échantillon données Beeline :**")
+            beeline_sample = remaining_beeline[0]
+            st.write(f"- N° Commande: '{beeline_sample.get('numero_commande')}' (type: {type(beeline_sample.get('numero_commande'))})")
+            st.write(f"- Semaine: '{beeline_sample.get('semaine_finissant_le')}' (type: {type(beeline_sample.get('semaine_finissant_le'))})")
+            st.write(f"- Montant Net Fournisseur: {beeline_sample.get('montant_net_fournisseur')} (type: {type(beeline_sample.get('montant_net_fournisseur'))})")
+            st.write(f"- Collaborateur: '{beeline_sample.get('collaborateur')}'")
+            
+            # Normalisation de test
+            beeline_commande_norm = self.normalize_commande_number(beeline_sample.get('numero_commande'))
+            beeline_semaine_norm = self.normalize_week_format(beeline_sample.get('semaine_finissant_le'))
+            st.write(f"- N° Commande normalisé: '{beeline_commande_norm}'")
+            st.write(f"- Semaine normalisée: '{beeline_semaine_norm}'")
+        
+        # Afficher tous les numéros de commande uniques pour comparaison
+        pdf_commandes = set(self.normalize_commande_number(item.get('numero_commande')) for item in remaining_pdf if item.get('numero_commande'))
+        beeline_commandes = set(self.normalize_commande_number(item.get('numero_commande')) for item in remaining_beeline if item.get('numero_commande'))
+        
+        st.write(f"📊 **N° Commandes uniques PDF ({len(pdf_commandes)}):** {sorted(list(pdf_commandes))[:10]}{'...' if len(pdf_commandes) > 10 else ''}")
+        st.write(f"📋 **N° Commandes uniques Beeline ({len(beeline_commandes)}):** {sorted(list(beeline_commandes))[:10]}{'...' if len(beeline_commandes) > 10 else ''}")
+        
+        # Chercher les intersections
+        commandes_communes = pdf_commandes.intersection(beeline_commandes)
+        st.write(f"🔗 **N° Commandes en commun ({len(commandes_communes)}):** {sorted(list(commandes_communes))}")
+        
+        if len(commandes_communes) == 0:
+            st.error("❌ **PROBLÈME IDENTIFIÉ** : Aucun numéro de commande en commun entre PDF et Beeline !")
+            st.write("🔍 **Vérifications à faire :**")
+            st.write("1. Les fichiers Excel PDF contiennent-ils bien les bonnes colonnes ?")
+            st.write("2. Les fichiers Beeline sont-ils au bon format ?")
+            st.write("3. Les numéros de commande correspondent-ils entre les deux sources ?")
+        # FIN DEBUG
+        
         # Phase 1: Matching exact par N° commande + Semaine
         st.write("🔍 Phase 1: Matching exact par N° commande + Semaine...")
         
+        matches_phase1 = 0
         for pdf_row in remaining_pdf.copy():
             pdf_commande = self.normalize_commande_number(pdf_row['numero_commande'])
             pdf_semaine = self.normalize_week_format(pdf_row['semaine_finissant_le'])
@@ -328,11 +406,15 @@ class ExcelMatcher:
                         matched_pairs.append(match_data)
                         remaining_pdf.remove(pdf_row)
                         remaining_beeline.remove(beeline_row)
+                        matches_phase1 += 1
                         break
+        
+        st.write(f"✅ Phase 1 terminée: {matches_phase1} matches exacts trouvés")
         
         # Phase 2: Matching partiel par N° commande seulement
         st.write("🔍 Phase 2: Matching partiel par N° commande...")
         
+        matches_phase2 = 0
         for pdf_row in remaining_pdf.copy():
             pdf_commande = self.normalize_commande_number(pdf_row['numero_commande'])
             
@@ -374,6 +456,9 @@ class ExcelMatcher:
                 matched_pairs.append(match_data)
                 remaining_pdf.remove(pdf_row)
                 remaining_beeline.remove(best_match)
+                matches_phase2 += 1
+        
+        st.write(f"✅ Phase 2 terminée: {matches_phase2} matches partiels trouvés")
         
         # Stocker les résultats
         self.matched_data = matched_pairs
