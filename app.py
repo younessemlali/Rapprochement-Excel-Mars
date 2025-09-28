@@ -747,16 +747,25 @@ def main():
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        avg_confidence = sum(confidences) / len(confidences)
-                        st.metric("🎯 Confiance moyenne", f"{avg_confidence:.3f}")
+                        if confidences:
+                            avg_confidence = sum(confidences) / len(confidences)
+                            st.metric("🎯 Confiance moyenne", f"{avg_confidence:.3f}")
+                        else:
+                            st.metric("🎯 Confiance moyenne", "N/A")
                     
                     with col2:
-                        avg_fuzzy = sum(fuzzy_scores) / len(fuzzy_scores)
-                        st.metric("🔍 Score fuzzy moyen", f"{avg_fuzzy:.1f}")
+                        if fuzzy_scores:
+                            avg_fuzzy = sum(fuzzy_scores) / len(fuzzy_scores)
+                            st.metric("🔍 Score fuzzy moyen", f"{avg_fuzzy:.1f}")
+                        else:
+                            st.metric("🔍 Score fuzzy moyen", "N/A")
                     
                     with col3:
-                        high_confidence = len([c for c in confidences if c > 0.8])
-                        st.metric("⭐ Matches haute confiance", f"{high_confidence}")
+                        if confidences:
+                            high_confidence = len([c for c in confidences if c > 0.8])
+                            st.metric("⭐ Matches haute confiance", f"{high_confidence}")
+                        else:
+                            st.metric("⭐ Matches haute confiance", "0")
                 
                 # Analyse par collaborateur
                 if matcher.matched_data:
@@ -904,7 +913,7 @@ def main():
                     
                     **🎯 Qualité :**
                     - Matching fuzzy avec seuil {fuzzy_threshold}%
-                    - Confiance moyenne: {sum(m['confidence'] for m in matcher.matched_data) / len(matcher.matched_data):.3f if matcher.matched_data else 0}
+                    - Confiance moyenne: {(sum(m['confidence'] for m in matcher.matched_data) / len(matcher.matched_data)):.3f if matcher.matched_data else 'N/A'}
                     - Enrichissement avec noms des intérimaires et validation croisée
                     """)
     
